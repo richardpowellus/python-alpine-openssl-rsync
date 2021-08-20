@@ -2,7 +2,7 @@ pipeline {
   agent any
   
   triggers {
-    cron('20 */4 * * *')
+    cron("20 */4 * * *")
   }
   
   options {
@@ -10,8 +10,12 @@ pipeline {
   }
   
   environment {
-    DOCKERHUB_CREDENTIALS = credentials('dprus-dockerhub')
+    DOCKERHUB_CREDENTIALS = credentials("dprus-dockerhub")
     REBUILD_IMAGE = false
+    UPSTREAM_IMAGE_NAME = "dprus/python-alpine-openssl"
+    DOCKERHUB_USERNAME = "dprus"
+    DOCKERHUB_REPO_NAME = "python-alpine-openssl-rsync"
+    DOCKERHUB_REPO_TAG = "latest"
   }
   
   stages {
@@ -35,12 +39,12 @@ pipeline {
       }
     }
     
-    stage('Fetch new Upstream Docker Hub Image Digest') {
+    stage('Fetch new upstream Docker Hub Image Digest') {
       steps {
         script {
           NEW_UPSTREAM_DOCKERHUB_IMAGE_DIGEST = sh(
             script: '''
-              docker manifest inspect dprus/python-alpine-openssl -v | jq '.[].Descriptor | select (.platform.architecture=="amd64" and .platform.os=="linux")' | jq -r '.digest'
+              docker manifest inspect ${UPSTREAM_IMAGE_NAME} -v | jq '.[].Descriptor | select (.platform.architecture=="amd64" and .platform.os=="linux")' | jq -r '.digest'
             ''',
             returnStdout: true
           ).trim()
@@ -61,7 +65,7 @@ pipeline {
         script {
           SECONDS_SINCE_LAST_IMAGE = sh(
             script: '''
-              d1=$(curl -s GET https://hub.docker.com/v2/repositories/dprus/python-alpine-openssl-rsync/tags/latest | jq -r ".last_updated")
+              d1=$(curl -s GET https://hub.docker.com/v2/repositories/${DOCKERHUB_USERNAME}/${DOCKERHUB_REPO_NAME}/tags/latest | jq -r ".last_updated")
               ddiff=$(( $(date "+%s") - $(date -d "$d1" "+%s") ))
               echo $ddiff
             ''',
@@ -94,13 +98,13 @@ pipeline {
     
     stage('Build') {
       steps {
-        sh 'docker build -t dprus/python-alpine-openssl-rsync:latest .'
+        sh 'docker build -t ${DOCKERHUB_USERNAME}/${DOCKERHUB_REPO_NAME}:${DOCKERHUB_REPO_TAG} .'
       }
     }
        
     stage('Push image to Docker Hub') {
       steps {
-        sh 'docker push dprus/python-alpine-openssl-rsync:latest'
+        sh 'docker push ${DOCKERHUB_USERNAME}/${DOCKERHUB_REPO_NAME}:${DOCKERHUB_REPO_TAG}'
       }
     }
     
